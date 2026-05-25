@@ -8,7 +8,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', c
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
-    full: 'max-w-[90vw]',
+    full: 'max-w-[90vw] lg:max-w-6xl',
   };
 
   useEffect(() => {
@@ -34,6 +34,8 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', c
 
   if (!isOpen) return null;
 
+  const hasTitle = title && title.length > 0;
+
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -52,7 +54,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', c
         `}
       >
         {/* Header */}
-        {title && (
+        {hasTitle && (
           <div className="flex items-center justify-between px-8 py-6 border-b border-warm-100 dark:border-dark-700 bg-warm-50/50 dark:bg-dark-900/50 backdrop-blur-sm">
             <h3 className="text-xl font-black text-warm-900 dark:text-white uppercase tracking-tight">{title}</h3>
             <button
@@ -64,8 +66,18 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', c
           </div>
         )}
 
+        {/* Floating close button when no title header */}
+        {!hasTitle && (
+          <button
+            onClick={onClose}
+            className="absolute top-5 right-5 z-10 p-2.5 rounded-2xl bg-warm-100/80 dark:bg-dark-700/80 text-warm-500 hover:text-warm-900 hover:bg-warm-200 dark:text-warm-400 dark:hover:text-white dark:hover:bg-dark-600 transition-all active:scale-90 backdrop-blur-sm"
+          >
+            <X size={20} />
+          </button>
+        )}
+
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-8 py-8 custom-scrollbar">
+        <div className={`overflow-y-auto flex-1 custom-scrollbar ${hasTitle ? 'px-8 py-8' : ''}`}>
           {children}
         </div>
       </div>
@@ -74,3 +86,4 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', c
 
   return createPortal(modalContent, document.body);
 }
+

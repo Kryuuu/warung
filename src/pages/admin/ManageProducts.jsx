@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, Package, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Loader2, Upload } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
+import { supabase } from '../../services/supabase';
 import useProductStore from '../../stores/productStore';
 import { formatCurrency } from '../../utils/helpers';
 import { PRODUCT_CATEGORIES } from '../../utils/constants';
@@ -17,6 +18,7 @@ export default function ManageProducts() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
     name: '', price: '', stock: '', image_url: '', description: '', category: 'Makanan Berat',
@@ -24,7 +26,35 @@ export default function ManageProducts() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
+
+  const handleImageUpload = async (e) => {
+    try {
+      if (!e.target.files || e.target.files.length === 0) return;
+      const file = e.target.files[0];
+      
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('products').getPublicUrl(filePath);
+      
+      setForm(prev => ({ ...prev, image_url: data.publicUrl }));
+      toast.success('Gambar berhasil diunggah!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunggah gambar: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -208,7 +238,35 @@ export default function ManageProducts() {
               ))}
             </select>
           </div>
-          <Input label="URL Gambar Produk (Unsplash/Imgur)" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." />
+          <div>
+            <label className="block text-xs font-bold uppercase text-warm-500 dark:text-warm-400 mb-1.5 ml-1">Gambar Produk</label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input 
+                  value={form.image_url} 
+                  onChange={(e) => setForm({ ...form, image_url: e.target.value })} 
+                  placeholder="https://... atau klik upload" 
+                />
+              </div>
+              <div className="relative w-14 shrink-0">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageUpload} 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  disabled={uploading}
+                />
+                <Button variant="secondary" outline className="absolute inset-0 w-full h-[52px] border-2 border-warm-200 dark:border-dark-600 rounded-xl flex items-center justify-center p-0">
+                  {uploading ? <Loader2 size={18} className="animate-spin text-brand-500" /> : <Upload size={18} className="text-warm-500" />}
+                </Button>
+              </div>
+            </div>
+            {form.image_url && (
+              <div className="mt-3 relative inline-block">
+                <img src={form.image_url} alt="Preview" className="h-20 w-20 object-cover rounded-xl border-2 border-warm-200 dark:border-dark-600 shadow-sm" />
+              </div>
+            )}
+          </div>
           <div>
             <label className="block text-xs font-bold uppercase text-warm-500 dark:text-warm-400 mb-1.5 ml-1">Deskripsi Singkat</label>
             <textarea

@@ -9,6 +9,12 @@ const useAuthStore = create((set, get) => ({
 
   // Live Supabase Login
   login: async (email, password) => {
+    if (!supabase) {
+      console.warn('⚠️ Auth: Supabase not initialized (demo mode).');
+      set({ isLoading: false });
+      return { success: false, error: 'Supabase belum dikonfigurasi. Aplikasi berjalan dalam Demo Mode.' };
+    }
+
     set({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -28,6 +34,12 @@ const useAuthStore = create((set, get) => ({
 
   // Live Supabase Register
   register: async (name, email, password) => {
+    if (!supabase) {
+      console.warn('⚠️ Auth: Supabase not initialized (demo mode).');
+      set({ isLoading: false });
+      return { success: false, error: 'Supabase belum dikonfigurasi. Aplikasi berjalan dalam Demo Mode.' };
+    }
+
     set({ isLoading: true });
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -54,13 +66,21 @@ const useAuthStore = create((set, get) => ({
 
   // Logout
   logout: async () => {
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     set({ user: null, role: null, isAuthenticated: false, isLoading: false });
     localStorage.removeItem('warungku_user'); // Clean up old dummy storage
   },
 
   // Initialize and Sync Session
   initialize: () => {
+    if (!supabase) {
+      console.warn('⚠️ Auth: Supabase not initialized. Skipping auth initialization (demo mode).');
+      set({ isLoading: false });
+      return;
+    }
+
     // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -82,6 +102,11 @@ const useAuthStore = create((set, get) => ({
 
   // Internal helper to fetch profile/role
   _handleAuthChange: async (supabaseUser) => {
+    if (!supabase) {
+      set({ isLoading: false });
+      return;
+    }
+
     try {
       const { data: profile, error } = await supabase
         .from('profiles')

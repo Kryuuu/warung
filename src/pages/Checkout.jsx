@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Building2, QrCode, CheckCircle2, Copy, ArrowLeft, Wallet } from 'lucide-react';
+import { Building2, QrCode, CheckCircle2, Copy, ArrowLeft, Wallet, User } from 'lucide-react';
 import Button from '../components/ui/Button';
 import useCartStore from '../stores/cartStore';
 import useAuthStore from '../stores/authStore';
@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/helpers';
 import { PAYMENT_METHODS } from '../utils/constants';
 import { supabase } from '../services/supabase';
 import toast from 'react-hot-toast';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -17,23 +18,14 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [guestName, setGuestName] = useState('');
   const totalPrice = getTotalPrice();
 
   // Filter out admin-only payment methods
   const availableMethods = PAYMENT_METHODS.filter(m => !m.isAdminOnly);
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center animate-fade-in-up">
-          <p className="text-6xl mb-4">🔒</p>
-          <h2 className="text-2xl font-bold text-warm-800 dark:text-warm-200 mb-2">Silakan Masuk Terlebih Dahulu</h2>
-          <p className="text-warm-500 dark:text-warm-400 mb-6">Anda perlu login untuk melakukan checkout</p>
-          <Link to="/login"><Button>Masuk</Button></Link>
-        </div>
-      </div>
-    );
-  }
+  // Determine display name
+  const customerName = isAuthenticated ? (user?.name || user?.email || 'Pelanggan') : guestName;
 
   if (items.length === 0 && !orderComplete) {
     return (
@@ -50,6 +42,12 @@ export default function Checkout() {
   const handleCheckout = async () => {
     if (!supabase) {
       toast.error('Koneksi database terputus. Silakan coba lagi.');
+      return;
+    }
+
+    // Validate guest name
+    if (!isAuthenticated && !guestName.trim()) {
+      toast.error('Masukkan nama Anda terlebih dahulu.');
       return;
     }
 
@@ -70,15 +68,23 @@ export default function Checkout() {
         }
       }
 
-      // 1. Create Order
+      // 1. Create Order — user_id is null for guest orders
+      const orderData = {
+        total_price: totalPrice,
+        status: 'pending',
+        payment_method: paymentMethod
+      };
+
+      // Set user_id for logged-in users, guest_name for walk-in
+      if (isAuthenticated && user?.id) {
+        orderData.user_id = user.id;
+      } else {
+        orderData.guest_name = guestName.trim();
+      }
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .insert({
-          user_id: user.id,
-          total_price: totalPrice,
-          status: 'pending',
-          payment_method: paymentMethod
-        })
+        .insert(orderData)
         .select()
         .single();
 
@@ -139,7 +145,6 @@ export default function Checkout() {
             Pesanan akan diproses setelah pembayaran dikonfirmasi.
           </p>
           <div className="flex flex-col gap-3">
-            <Link to="/orders"><Button fullWidth>Lihat Pesanan Saya</Button></Link>
             <Link to="/products"><Button fullWidth variant="secondary">Pesan Lagi</Button></Link>
           </div>
         </div>
@@ -160,6 +165,45 @@ export default function Checkout() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           <div className="lg:col-span-3 space-y-6">
+            
+            {/* Guest Name Input — shown when not logged in */}
+            {!isAuthenticated && (
+              <div className="bg-white dark:bg-dark-800 rounded-3xl border border-warm-100 dark:border-dark-600 p-6 shadow-xl shadow-black/[0.03]">
+                <h3 className="text-lg font-bold text-warm-900 dark:text-white mb-1">
+                  Informasi Pemesan
+                </h3>
+                <p className="text-xs text-warm-400 dark:text-warm-500 mb-4">Masukkan nama Anda untuk melanjutkan pemesanan</p>
+                <div className="relative">
+                  <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-warm-400" />
+                  <input 
+                    type="text"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    placeholder="Contoh: Budi / Meja 03"
+                    className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-warm-200 dark:border-dark-500 bg-warm-50/50 dark:bg-dark-700 text-warm-900 dark:text-white placeholder:text-warm-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 outline-none transition-all text-sm font-semibold"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Logged-in user info */}
+            {isAuthenticated && (
+              <div className="bg-white dark:bg-dark-800 rounded-3xl border border-warm-100 dark:border-dark-600 p-6 shadow-xl shadow-black/[0.03]">
+                <h3 className="text-lg font-bold text-warm-900 dark:text-white mb-3">
+                  Informasi Pemesan
+                </h3>
+                <div className="flex items-center gap-4 p-4 bg-warm-50/50 dark:bg-dark-700/50 rounded-2xl border border-warm-100 dark:border-dark-600">
+                  <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                    <User size={22} className="text-brand-600 dark:text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-warm-900 dark:text-white">{user?.name || 'Pelanggan'}</p>
+                    <p className="text-xs text-warm-400">{user?.email}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white dark:bg-dark-800 rounded-3xl border border-warm-100 dark:border-dark-600 p-6 shadow-xl shadow-black/[0.03]">
               <h3 className="text-lg font-bold text-warm-900 dark:text-white mb-4">
                 Metode Pembayaran
@@ -169,7 +213,7 @@ export default function Checkout() {
                   <button
                     key={method.id}
                     onClick={() => setPaymentMethod(method.id)}
-                    className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 text-left ${
+                    className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 text-left cursor-pointer ${
                       paymentMethod === method.id
                         ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/20 dark:border-brand-400 ring-4 ring-brand-500/10'
                         : 'border-warm-100 dark:border-dark-700 hover:border-warm-200 dark:hover:border-dark-600'
@@ -206,14 +250,25 @@ export default function Checkout() {
               </h3>
               {paymentMethod === 'qris' ? (
                 <div className="text-center py-4">
-                  <div className="inline-block p-6 bg-white rounded-3xl border-2 border-warm-100 mb-4 shadow-sm">
-                    <div className="w-48 h-48 bg-gradient-to-br from-warm-50 to-warm-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                      <QrCode size={120} className="text-warm-800" />
+                  <div className="inline-block p-4 bg-white rounded-3xl border-2 border-brand-100 dark:border-brand-900/30 mb-4 shadow-lg shadow-brand-500/10 transition-transform hover:scale-105 duration-300">
+                    <div className="bg-white p-2 rounded-2xl relative">
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-10 h-10 rounded-full flex items-center justify-center shadow-md">
+                        <span className="text-brand-500 font-black text-xl">W</span>
+                      </div>
+                      <QRCodeSVG 
+                        value={`https://qris.id/pay?merchant=WARUNGKU&amount=${totalPrice}`}
+                        size={200}
+                        bgColor={"#ffffff"}
+                        fgColor={"#1e1e1e"}
+                        level={"H"}
+                        includeMargin={false}
+                      />
                     </div>
                   </div>
                   <p className="text-sm font-medium text-warm-600 dark:text-warm-400">
                     Scan QR code di atas dengan aplikasi e-wallet Anda
                   </p>
+                  <p className="text-xs text-brand-500 font-bold mt-1">Total tagihan: {formatCurrency(totalPrice)}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -273,9 +328,21 @@ export default function Checkout() {
                   <span className="text-2xl font-black text-brand-600 dark:text-brand-400">{formatCurrency(totalPrice)}</span>
                 </div>
               </div>
-              <Button fullWidth size="lg" onClick={handleCheckout} loading={isProcessing} className="py-4 shadow-lg shadow-brand-500/20">
+              <Button 
+                fullWidth 
+                size="lg" 
+                onClick={handleCheckout} 
+                loading={isProcessing} 
+                disabled={!isAuthenticated && !guestName.trim()}
+                className="py-4 shadow-lg shadow-brand-500/20"
+              >
                 {isProcessing ? 'Memproses Pesanan...' : 'Buat Pesanan Sekarang'}
               </Button>
+              {!isAuthenticated && !guestName.trim() && (
+                <p className="text-[10px] text-center text-warm-400 dark:text-warm-500 mt-3">
+                  Masukkan nama Anda di atas untuk melanjutkan
+                </p>
+              )}
             </div>
           </div>
         </div>

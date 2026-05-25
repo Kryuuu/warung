@@ -30,10 +30,11 @@ CREATE TABLE IF NOT EXISTS public.products (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Orders (Updated with 'cod' payment method support)
+-- Orders (Updated with 'cod' payment method and guest checkout support)
 CREATE TABLE IF NOT EXISTS public.orders (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.profiles(id) NOT NULL,
+  user_id UUID REFERENCES public.profiles(id),
+  guest_name TEXT,
   total_price NUMERIC NOT NULL CHECK (total_price >= 0),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processed', 'completed', 'cancelled')),
   payment_method TEXT DEFAULT 'transfer' CHECK (payment_method IN ('transfer', 'qris', 'cod')),
